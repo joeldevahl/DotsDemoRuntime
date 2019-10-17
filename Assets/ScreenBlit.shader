@@ -44,7 +44,7 @@
             float4 frag (v2f i) : SV_Target
             {
                 uint index = uint(i.vertex.y) * uint(_ScreenParams.x) + uint(i.vertex.x);
-                return _buffer[0];
+                return _buffer[index];
             }
             ENDHLSL
         }

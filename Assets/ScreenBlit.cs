@@ -1,13 +1,12 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
+﻿using Unity.Burst;
 using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
+using Unity.Entities;
 using UnityEngine;
 using UnityEngine.Rendering;
 using Unity.Mathematics;
+using Unity.Jobs;
 
-//[ExecuteInEditMode]
+[ExecuteInEditMode]
 public class ScreenBlit : MonoBehaviour
 {
     private CommandBuffer cmd;
@@ -46,13 +45,46 @@ public class ScreenBlit : MonoBehaviour
         buffer.Dispose();
     }
 
+    [BurstCompile(CompileSynchronously = true)]
+    struct RTJob : IJobParallelFor
+    {
+        public float aspect;
+        public float near;
+        public int width;
+        public int height;
+        public NativeArray<float4> buffer;
+        public void Execute(int i)
+        {
+            var x = (float)(i % width) / (float)width;
+            var y = (float)(i / width) / (float)height;
+
+            x = x * 2.0f - 1.0f;
+            y = 1.0f - y * 2.0f;
+
+            var rayOrigin = new float3(0.0f, 0.0f, 0.0f);
+            var forward = new float3(0.0f, 0.0f, -1.0f);
+            var up = new float3(0.0f, 1.0f, 1.0f);
+            var right = new float3(1.0f, 0.0f, 0.0f);
+
+            var rayDir = math.normalize(forward * near + up * y + right * x);
+
+            var color = new float3(rayDir.xyz);
+            buffer[i] += new float4(color, 1.0f);
+        }
+    }
+
     private void Update()
     {
         // fill per frame data
-        for (int i = 0; i < buffer.Length; ++i)
-        {
-            buffer[i] = new float4(1.0f, 0.0f, 1.0f, 1.0f);
-        }
+        var job = new RTJob();
+        job.aspect = (float)width / (float)height;
+        job.near = 1.0f;
+        job.width = width;
+        job.height = height;
+        job.buffer = buffer;
+        
+        job.Schedule(width * height, 256).Complete();
+        
         computeBuffer.SetData(buffer);
     }
 }
