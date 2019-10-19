@@ -13,7 +13,7 @@ public class ScreenBlit : MonoBehaviour
     private int width;
     private int height;
     private ComputeBuffer computeBuffer;
-    private NativeArray<float4> buffer;
+    private NativeArray<float4> backBuffer;
     public Material blitMaterial;
     
     void OnEnable()
@@ -22,15 +22,15 @@ public class ScreenBlit : MonoBehaviour
         Camera.main.AddCommandBuffer(CameraEvent.AfterEverything, cmd);
         height = Camera.main.pixelHeight;
         width = Camera.main.pixelWidth;
-        buffer = new NativeArray<float4>(width * height, Allocator.Persistent);
-        computeBuffer = new ComputeBuffer(buffer.Length * 16, 16, ComputeBufferType.Structured);
+        backBuffer = new NativeArray<float4>(width * height, Allocator.Persistent);
+        computeBuffer = new ComputeBuffer(backBuffer.Length * 16, 16, ComputeBufferType.Structured);
         
         // fill initial data
-        for (int i = 0; i < buffer.Length; ++i)
+        for (int i = 0; i < backBuffer.Length; ++i)
         {
-            buffer[i] = new float4(1.0f, 0.0f, 1.0f, 1.0f);
+            backBuffer[i] = new float4(1.0f, 0.0f, 1.0f, 1.0f);
         }
-        computeBuffer.SetData(buffer);
+        computeBuffer.SetData(backBuffer);
         
         // set up blitting command buffer
         blitMaterial.SetBuffer("_buffer", computeBuffer);
@@ -42,7 +42,7 @@ public class ScreenBlit : MonoBehaviour
         Camera.main.RemoveCommandBuffer(CameraEvent.AfterEverything, cmd);
         cmd.Dispose();
         computeBuffer.Dispose();
-        buffer.Dispose();
+        backBuffer.Dispose();
     }
 
     [BurstCompile(CompileSynchronously = true)]
@@ -81,10 +81,10 @@ public class ScreenBlit : MonoBehaviour
         job.near = 1.0f;
         job.width = width;
         job.height = height;
-        job.buffer = buffer;
+        job.buffer = backBuffer;
         
         job.Schedule(width * height, 256).Complete();
         
-        computeBuffer.SetData(buffer);
+        computeBuffer.SetData(backBuffer);
     }
 }
