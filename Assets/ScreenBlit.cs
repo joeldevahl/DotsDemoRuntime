@@ -1,10 +1,12 @@
-﻿using Unity.Burst;
+﻿using System;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using UnityEngine;
 using UnityEngine.Rendering;
 using Unity.Mathematics;
 using Unity.Jobs;
+using UnityEditor;
 
 [ExecuteInEditMode]
 public class ScreenBlit : MonoBehaviour
@@ -14,6 +16,11 @@ public class ScreenBlit : MonoBehaviour
     private int height;
     private ComputeBuffer computeBuffer;
     private NativeArray<float4> backBuffer;
+
+    private double startTime = 0.0;
+    private double sampleRate = 0.0;
+    private bool running = false;
+    
     public Material blitMaterial;
     
     void OnEnable()
@@ -37,7 +44,17 @@ public class ScreenBlit : MonoBehaviour
         cmd.DrawProcedural(Matrix4x4.identity, blitMaterial, 0, MeshTopology.Triangles, 3, 1);
     }
 
-    private void OnDisable()
+    void Start()
+    {
+        if (!EditorApplication.isPlaying)
+            return;
+        
+        startTime = AudioSettings.dspTime;
+        sampleRate = AudioSettings.outputSampleRate;
+        running = true;
+    }
+    
+    void OnDisable()
     {
         Camera.main.RemoveCommandBuffer(CameraEvent.AfterEverything, cmd);
         cmd.Dispose();
@@ -73,7 +90,7 @@ public class ScreenBlit : MonoBehaviour
         }
     }
 
-    private void Update()
+    void Update()
     {
         // fill per frame data
         var job = new RTJob();
@@ -86,5 +103,24 @@ public class ScreenBlit : MonoBehaviour
         job.Schedule(width * height, 256).Complete();
         
         computeBuffer.SetData(backBuffer);
+    }
+
+    void OnAudioFilterRead(float[] data, int channels)
+    {
+        if (!running)
+            return;
+        
+        double currTime = (AudioSettings.dspTime - startTime);
+        double currTick = currTime * sampleRate;
+        
+        var numSamples = data.Length / channels;
+        for (int i = 0; i < numSamples; i++)
+        {
+            float sample = math.sin((float)currTick * 1.0f);
+            for (int c = 0; c < channels; ++c)
+            {
+                data[i + c] = sample;
+            }
+        }
     }
 }
